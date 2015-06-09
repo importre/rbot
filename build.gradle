@@ -1,0 +1,90 @@
+group 'io.github.importre'
+version '1.0-SNAPSHOT'
+
+apply plugin: 'java'
+apply plugin: 'org.hidetake.ssh'
+apply plugin: 'application'
+
+sourceCompatibility = 1.7
+mainClassName = 'io.github.importre.rbot/RbotPackage'
+
+buildscript {
+    ext.kotlin_version = '0.12.213'
+    ext.mahout_version = '0.10.0'
+    repositories {
+        jcenter()
+    }
+
+    dependencies {
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:${kotlin_version}"
+        classpath 'org.hidetake:gradle-ssh-plugin:1.1.3'
+    }
+}
+
+apply plugin: "kotlin"
+
+repositories {
+    jcenter()
+}
+
+remotes {
+    etc {
+        host = project.sshHost
+        user = project.sshUser
+        password = project.sshPassword
+    }
+}
+
+task getdb << {
+    ssh.run {
+        def db = new File('db')
+        if (db.exists()) db.deleteDir()
+        db.mkdir()
+        session(remotes.etc) {
+            get "${project.dbPath}/${project.dbFile}", "db/${project.dbName}.gz"
+        }
+    }
+}
+
+task initdb(type: Exec) {
+    commandLine "./initdb.sh", project.dbName
+
+    standardOutput = new ByteArrayOutputStream()
+    ext.output = {
+        return standardOutput.toString()
+    }
+}
+
+initdb.dependsOn getdb
+
+assemble {
+    def packageName = "io.github.importre.rbot"
+    def path = sourceSets.main.java.getSrcDirs().getAt(0)
+    def name = 'BuildConfig'
+    def filePath = [path,
+                    packageName.replace('.' as char, File.separatorChar),
+                    name + '.java'].join(File.separator)
+    println name
+    File f = file(filePath)
+
+    def buff = [
+            "package $packageName;",
+            "",
+            "public class $name {",
+            "    public static final String VERSION = \"$version\";",
+            "    public static final String DB_NAME= \"$project.dbName\";",
+            "    public static final String INSERT_SQL = \"$project.insertSql\";",
+            "    public static final String SELECT_SQL = \"$project.selectSql\";",
+            "}"
+    ]
+    f.write(buff.join('\n'));
+}
+
+dependencies {
+    compile "org.apache.mahout:mahout-distribution:${mahout_version}"
+    compile "org.apache.hadoop:hadoop-client:2.5.0"
+    compile "org.apache.mahout:mahout-integration:${mahout_version}"
+    compile "org.jetbrains.kotlin:kotlin-stdlib:${kotlin_version}"
+    compile "org.postgresql:postgresql:9.4-1201-jdbc41"
+    testCompile group: 'junit', name: 'junit', version: '4.11'
+}
