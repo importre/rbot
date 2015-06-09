@@ -6,7 +6,7 @@ import org.apache.mahout.cf.taste.impl.neighborhood.NearestNUserNeighborhood
 import org.apache.mahout.cf.taste.impl.recommender.GenericUserBasedRecommender
 import org.apache.mahout.cf.taste.impl.recommender.svd.SVDPlusPlusFactorizer
 import org.apache.mahout.cf.taste.impl.recommender.svd.SVDRecommender
-import org.apache.mahout.cf.taste.impl.similarity.PearsonCorrelationSimilarity
+import org.apache.mahout.cf.taste.impl.similarity.EuclideanDistanceSimilarity
 import org.apache.mahout.cf.taste.recommender.RecommendedItem
 import org.postgresql.ds.PGSimpleDataSource
 import java.util.ArrayList
@@ -67,8 +67,8 @@ fun getRecommends(model: PostgreSQLJDBCDataModel, method: Int): List<Recommended
 
     when (method) {
         0 -> {
-            val similarity = PearsonCorrelationSimilarity(model)
-            val neighborhood = NearestNUserNeighborhood(1000, similarity, model)
+            val similarity = EuclideanDistanceSimilarity(model)
+            val neighborhood = NearestNUserNeighborhood(10, similarity, model)
             val recommender = GenericUserBasedRecommender(model, neighborhood, similarity)
             return recommender.recommend(id, howMany)
         }
