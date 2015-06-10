@@ -3,7 +3,9 @@ package io.github.importre.rbot
 import org.apache.commons.lang.StringUtils
 import org.apache.mahout.cf.taste.impl.model.jdbc.PostgreSQLJDBCDataModel
 import org.apache.mahout.cf.taste.impl.neighborhood.NearestNUserNeighborhood
+import org.apache.mahout.cf.taste.impl.recommender.GenericItemBasedRecommender
 import org.apache.mahout.cf.taste.impl.recommender.GenericUserBasedRecommender
+import org.apache.mahout.cf.taste.impl.recommender.svd.ALSWRFactorizer
 import org.apache.mahout.cf.taste.impl.recommender.svd.SVDPlusPlusFactorizer
 import org.apache.mahout.cf.taste.impl.recommender.svd.SVDRecommender
 import org.apache.mahout.cf.taste.impl.similarity.EuclideanDistanceSimilarity
@@ -34,24 +36,22 @@ fun main(args: Array<String>) {
     val model = PostgreSQLJDBCDataModel(dataSource,
             "temp", "user_id", "item_id", "preference", null)
 
-    val recommendedItems = getRecommends(model, 0)
+    val recommendedItems = getRecommends(model, 2)
     val ids = ArrayList<String>()
     for (item in recommendedItems) {
-        println(item)
         ids.add("t.id=" + item.getItemID())
     }
 
     if (!ids.isEmpty()) {
         val s = StringUtils.join(ids, " OR ")
         val sql = java.lang.String.format(BuildConfig.SELECT_SQL, s)
-        println(sql)
 
         val res = stmt.executeQuery(sql)
         while (res.next()) {
             val t = res.getString(1)
-            val p = res.getInt(2)
-            val n = res.getInt(3)
-            println("${t} p.${p} #${n}")
+            val p = res.getString(2)
+            val n = res.getString(3)
+            println(t + " p." + p + " #" + n)
         }
     }
 
@@ -63,7 +63,8 @@ fun main(args: Array<String>) {
 
 fun getRecommends(model: PostgreSQLJDBCDataModel, method: Int): List<RecommendedItem> {
     val id: Long = 1327
-    val howMany = 10
+    val howMany = 5
+    val iter = 5
 
     when (method) {
         0 -> {
@@ -74,7 +75,19 @@ fun getRecommends(model: PostgreSQLJDBCDataModel, method: Int): List<Recommended
         }
 
         1 -> {
-            val factorizer = SVDPlusPlusFactorizer(model, 3, 5)
+            val similarity = EuclideanDistanceSimilarity(model)
+            val recommender = GenericItemBasedRecommender(model, similarity)
+            return recommender.recommend(id, howMany)
+        }
+
+        2 -> {
+            val factorizer = SVDPlusPlusFactorizer(model, 3, iter)
+            val svdRecommender = SVDRecommender(model, factorizer)
+            return svdRecommender.recommend(id, howMany)
+        }
+
+        3 -> {
+            val factorizer = ALSWRFactorizer(model, 3, 0.5, iter)
             val svdRecommender = SVDRecommender(model, factorizer)
             return svdRecommender.recommend(id, howMany)
         }
