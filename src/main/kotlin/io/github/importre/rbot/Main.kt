@@ -27,7 +27,7 @@ fun main(args: Array<String>) {
         CREATE TABLE temp (
             user_id BIGINT NOT NULL,
             item_id BIGINT NOT NULL,
-            preference REAL NOT NULL,
+            preference REAL NOT NULL DEFAULT 0.0,
             PRIMARY KEY (user_id, item_id)
         )
     """)
@@ -36,9 +36,10 @@ fun main(args: Array<String>) {
     val model = PostgreSQLJDBCDataModel(dataSource,
             "temp", "user_id", "item_id", "preference", null)
 
-    val recommendedItems = getRecommends(model, 2)
+    val recommendedItems = getRecommends(model, -1)
     val ids = ArrayList<String>()
     for (item in recommendedItems) {
+        println(item)
         ids.add("t.id=" + item.getItemID())
     }
 
@@ -51,7 +52,7 @@ fun main(args: Array<String>) {
             val t = res.getString(1)
             val p = res.getString(2)
             val n = res.getString(3)
-            println(t + " p." + p + " #" + n)
+            println("${t} p.${p} #${n}")
         }
     }
 
@@ -67,6 +68,12 @@ fun getRecommends(model: PostgreSQLJDBCDataModel, method: Int): List<Recommended
     val iter = 5
 
     when (method) {
+        -1 -> {
+            val factorizer = SVDPlusPlusFactorizer(model, 3, iter)
+            val svdRecommender = SVDRecommender(model, factorizer)
+            return svdRecommender.recommend(id, howMany)
+        }
+
         0 -> {
             val similarity = EuclideanDistanceSimilarity(model)
             val neighborhood = NearestNUserNeighborhood(10, similarity, model)
@@ -81,12 +88,6 @@ fun getRecommends(model: PostgreSQLJDBCDataModel, method: Int): List<Recommended
         }
 
         2 -> {
-            val factorizer = SVDPlusPlusFactorizer(model, 3, iter)
-            val svdRecommender = SVDRecommender(model, factorizer)
-            return svdRecommender.recommend(id, howMany)
-        }
-
-        3 -> {
             val factorizer = ALSWRFactorizer(model, 3, 0.5, iter)
             val svdRecommender = SVDRecommender(model, factorizer)
             return svdRecommender.recommend(id, howMany)
